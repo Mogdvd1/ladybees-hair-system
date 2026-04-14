@@ -4,11 +4,16 @@ import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { Receipt, Package, Clock, Download, TrendingUp, Calendar, AlertCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format, isToday, isSameDay } from 'date-fns';
+import { toast } from 'sonner';
 
 interface Sale {
   id: string;
   total: number;
   paymentMethod: string;
+  paymentProvider?: string;
+  customerName?: string;
+  items?: any[];
+  processedBy?: string;
   timestamp: any;
 }
 
@@ -61,16 +66,54 @@ const Reports: React.FC = () => {
   const lowStockProducts = products.filter(p => p.stock <= 5);
 
   const exportToCSV = (data: any[], filename: string) => {
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + Object.keys(data[0]).join(",") + "\n"
-      + data.map(row => Object.values(row).join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${filename}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    if (!data || data.length === 0) {
+      toast.error('No data available to export for this date');
+      return;
+    }
+
+    try {
+      // Format data for CSV
+      const formattedData = data.map(sale => ({
+        Date: sale.timestamp ? format(new Date(sale.timestamp.seconds * 1000), 'yyyy-MM-dd HH:mm:ss') : 'N/A',
+        Customer: sale.customerName || 'Walk-in',
+        Total: sale.total,
+        Payment_Method: sale.paymentMethod,
+        Payment_Provider: sale.paymentProvider || 'N/A',
+        Processed_By: sale.processedBy || 'N/A',
+        Items: sale.items ? sale.items.map((i: any) => `${i.name}(${i.quantity})`).join('; ') : 'N/A'
+      }));
+
+      const headers = Object.keys(formattedData[0]);
+      const csvRows = [
+        headers.join(','), // Header row
+        ...formattedData.map(row => 
+          headers.map(header => {
+            const val = row[header as keyof typeof row];
+            // Escape commas and quotes
+            const stringVal = String(val).replace(/"/g, '""');
+            return `"${stringVal}"`;
+          }).join(',')
+        )
+      ];
+
+      const csvString = csvRows.join('\n');
+      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${filename}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast.success('Report exported successfully!');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export CSV');
+    }
   };
 
   return (

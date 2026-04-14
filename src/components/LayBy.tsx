@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, query, addDoc, doc, updateDoc, arrayUnion, orderBy } from 'firebase/firestore';
-import { Clock, Search, Plus, Calendar, AlertCircle, Trash2 } from 'lucide-react';
+import { collection, onSnapshot, query, addDoc, doc, updateDoc, arrayUnion, orderBy, increment, serverTimestamp } from 'firebase/firestore';
+import { Clock, Search, Plus, Calendar, AlertCircle, Trash2, Package, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { format, addDays, isAfter } from 'date-fns';
+import { format, addDays, isAfter, subDays } from 'date-fns';
+
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+}
 
 interface LayByAgreement {
   id: string;
@@ -17,17 +24,21 @@ interface LayByAgreement {
   dueDate: string;
   period: string;
   createdAt: string;
+  deductStock: boolean;
   payments: {
     amount: number;
     date: string;
     note: string;
+    proofImage?: string;
   }[];
 }
 
 const LayBy: React.FC = () => {
   const [agreements, setAgreements] = useState<LayByAgreement[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [productSearch, setProductSearch] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('1 month');
   const [paymentModal, setPaymentModal] = useState<{ id: string, currentPaid: number, total: number } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -38,8 +49,12 @@ const LayBy: React.FC = () => {
     customerPhone: '',
     items: '',
     totalAmount: 0,
-    deposit: 0
+    deposit: 0,
+    backdate: '',
+    deductStock: true
   });
+
+  const [selectedProducts, setSelectedProducts] = useState<{id: string, name: string, price: number, quantity: number}[]>([]);
 
   const periods = [
     { label: '1 Week', value: '1 week', days: 7 },
@@ -47,55 +62,108 @@ const LayBy: React.FC = () => {
     { label: '2 Months', value: '2 months', days: 60 }
   ];
 
-  // Auto-clear leading zero logic
-  const handleNumberInput = (val: string, setter: (v: string) => void) => {
-    const cleaned = val.replace(/^0+/, '');
-    setter(cleaned);
-  };
-
   useEffect(() => {
     const q = query(collection(db, 'laybys'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LayByAgreement));
       setAgreements(items);
     });
-    return unsubscribe;
+
+    const qProd = query(collection(db, 'products'));
+    const unsubProd = onSnapshot(qProd, (snapshot) => {
+      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+      setProducts(items);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubProd();
+    };
   }, []);
+
+  const addToAgreement = (product: Product) => {
+    setSelectedProducts(prev => {
+      const existing = prev.find(p => p.id === product.id);
+      if (existing) {
+        return prev.map(p => p.id === product.id ? { ...p, quantity: p.quantity + 1 } : p);
+      }
+      return [...prev, { id: product.id, name: product.name, price: product.price, quantity: 1 }];
+    });
+    
+    // Auto-update total amount
+    setFormData(prev => ({
+      ...prev,
+      totalAmount: prev.totalAmount + product.price,
+      items: prev.items ? `${prev.items}, ${product.name}` : product.name
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const periodObj = periods.find(p => p.value === selectedPeriod);
-      const dueDate = addDays(new Date(), periodObj?.days || 30);
+      const startDate = formData.backdate ? new Date(formData.backdate) : new Date();
+      const dueDate = addDays(startDate, periodObj?.days || 30);
 
-      // Auto-add to customers collection
+      // 1. Deduct Stock if requested
+      if (formData.deductStock) {
+        for (const item of selectedProducts) {
+          const productRef = doc(db, 'products', item.id);
+          await updateDoc(productRef, {
+            stock: increment(-item.quantity)
+          });
+        }
+      }
+
+      // 2. Add Customer
       await addDoc(collection(db, 'customers'), {
         name: formData.customerName,
         phone: formData.customerPhone,
-        createdAt: new Date().toISOString(),
+        createdAt: startDate.toISOString(),
         totalPurchases: 0,
         type: 'Lay-by'
       });
 
+      // 3. Create Agreement
       await addDoc(collection(db, 'laybys'), {
-        ...formData,
+        customerName: formData.customerName,
+        customerPhone: formData.customerPhone,
+        items: formData.items,
+        totalAmount: formData.totalAmount,
         paidAmount: formData.deposit,
         period: selectedPeriod,
         dueDate: dueDate.toISOString(),
         status: 'active',
-        createdAt: new Date().toISOString(),
+        createdAt: startDate.toISOString(),
+        deductStock: formData.deductStock,
         payments: [{
           amount: formData.deposit,
-          date: new Date().toISOString(),
+          date: startDate.toISOString(),
           note: 'Initial Deposit'
         }]
       });
-      setIsModalOpen(false);
-      setFormData({ customerName: '', customerPhone: '', items: '', totalAmount: 0, deposit: 0 });
-      toast.success('Lay-by agreement created and customer saved!');
+
+      handleCloseModal();
+      toast.success('Agreement created successfully!');
     } catch (error) {
+      console.error(error);
       toast.error('Failed to create agreement');
     }
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setFormData({ 
+      customerName: '', 
+      customerPhone: '', 
+      items: '', 
+      totalAmount: 0, 
+      deposit: 0,
+      backdate: '',
+      deductStock: true
+    });
+    setSelectedProducts([]);
+    setProductSearch('');
   };
 
   const [viewingHistory, setViewingHistory] = useState<string | null>(null);
@@ -308,63 +376,142 @@ const LayBy: React.FC = () => {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="glass-card w-full max-w-md p-6 sm:p-8 my-auto sm:my-8"
+              className="glass-card w-full max-w-2xl p-6 sm:p-8 my-auto sm:my-8"
             >
               <h3 className="text-2xl font-cursive font-bold text-brand-gold mb-6">New Lay-by Agreement</h3>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Customer Name</label>
-                    <input 
-                      required
-                      type="text" 
-                      value={formData.customerName}
-                      onChange={(e) => setFormData({...formData, customerName: e.target.value})}
-                      className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
-                    />
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Customer Name</label>
+                        <input 
+                          required
+                          type="text" 
+                          value={formData.customerName}
+                          onChange={(e) => setFormData({...formData, customerName: e.target.value})}
+                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Phone</label>
+                        <input 
+                          required
+                          type="text" 
+                          value={formData.customerPhone}
+                          onChange={(e) => setFormData({...formData, customerPhone: e.target.value})}
+                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Items Reserved (Manual Entry)</label>
+                      <textarea 
+                        required
+                        value={formData.items}
+                        onChange={(e) => setFormData({...formData, items: e.target.value})}
+                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold h-20 resize-none text-sm"
+                        placeholder="Type items here or select from catalog below..."
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Total Amount (ZK)</label>
+                        <input 
+                          required
+                          type="number" 
+                          value={formData.totalAmount || ''}
+                          onChange={(e) => setFormData({...formData, totalAmount: Number(e.target.value)})}
+                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Initial Deposit (ZK)</label>
+                        <input 
+                          required
+                          type="number" 
+                          value={formData.deposit || ''}
+                          onChange={(e) => setFormData({...formData, deposit: Number(e.target.value)})}
+                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Agreement Date</label>
+                        <input 
+                          type="date" 
+                          value={formData.backdate}
+                          onChange={(e) => setFormData({...formData, backdate: e.target.value})}
+                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold text-sm"
+                        />
+                      </div>
+                      <div className="flex items-end pb-2">
+                        <label className="flex items-center space-x-2 cursor-pointer group">
+                          <input 
+                            type="checkbox"
+                            checked={formData.deductStock}
+                            onChange={(e) => setFormData({...formData, deductStock: e.target.checked})}
+                            className="w-4 h-4 rounded border-white/10 bg-white/5 text-brand-gold focus:ring-brand-gold"
+                          />
+                          <span className="text-[10px] text-gray-400 uppercase tracking-widest group-hover:text-white transition-colors">Deduct from Stock</span>
+                        </label>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Phone</label>
-                    <input 
-                      required
-                      type="text" 
-                      value={formData.customerPhone}
-                      onChange={(e) => handleNumberInput(e.target.value, (v) => setFormData({...formData, customerPhone: v}))}
-                      className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
-                    />
+
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                      <input 
+                        type="text" 
+                        placeholder="Search Catalog..."
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold text-sm"
+                      />
+                    </div>
+                    
+                    <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                      {products
+                        .filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()))
+                        .map(product => (
+                          <button
+                            key={product.id}
+                            type="button"
+                            onClick={() => addToAgreement(product)}
+                            className="w-full flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-xl hover:border-brand-gold/30 transition-all text-left group"
+                          >
+                            <div>
+                              <p className="text-sm font-bold group-hover:text-brand-gold transition-colors">{product.name}</p>
+                              <p className="text-[10px] text-gray-500 uppercase tracking-widest">Stock: {product.stock}</p>
+                            </div>
+                            <p className="text-xs font-mono text-brand-gold">ZK {product.price.toLocaleString()}</p>
+                          </button>
+                        ))}
+                    </div>
+
+                    <div className="p-4 bg-brand-gold/5 border border-brand-gold/10 rounded-xl">
+                      <label className="block text-[10px] text-brand-gold uppercase tracking-widest mb-2 font-bold">Selected Products</label>
+                      <div className="space-y-1">
+                        {selectedProducts.length === 0 ? (
+                          <p className="text-[10px] text-gray-500 italic">No products selected from catalog</p>
+                        ) : (
+                          selectedProducts.map(p => (
+                            <div key={p.id} className="flex justify-between text-[10px]">
+                              <span className="text-gray-300">{p.quantity}x {p.name}</span>
+                              <span className="text-brand-gold">ZK {(p.price * p.quantity).toLocaleString()}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Items Reserved</label>
-                  <textarea 
-                    required
-                    value={formData.items}
-                    onChange={(e) => setFormData({...formData, items: e.target.value})}
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold h-20 resize-none"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Total Amount (ZK)</label>
-                    <input 
-                      required
-                      type="number" 
-                      value={formData.totalAmount || ''}
-                      onChange={(e) => setFormData({...formData, totalAmount: Number(e.target.value)})}
-                      className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Initial Deposit (ZK)</label>
-                    <input 
-                      required
-                      type="number" 
-                      value={formData.deposit || ''}
-                      onChange={(e) => setFormData({...formData, deposit: Number(e.target.value)})}
-                      className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
-                    />
-                  </div>
-                </div>
+
                 <div>
                   <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Lay-by Period</label>
                   <div className="grid grid-cols-3 gap-2">
@@ -384,10 +531,11 @@ const LayBy: React.FC = () => {
                     ))}
                   </div>
                 </div>
+
                 <div className="flex space-x-4 mt-8">
                   <button 
                     type="button"
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={handleCloseModal}
                     className="flex-1 px-4 py-2 rounded-xl border border-white/10 hover:bg-white/5 transition-colors"
                   >
                     Cancel

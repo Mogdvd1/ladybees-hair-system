@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, query, orderBy, where, getDocs } from 'firebase/firestore';
-import { Users, Search, Phone, Mail, Calendar, DollarSign, ExternalLink, X, Receipt, Clock, ShoppingCart } from 'lucide-react';
+import { collection, onSnapshot, query, orderBy, where, getDocs, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
+import { Users, Search, Phone, Mail, Calendar, DollarSign, ExternalLink, X, Receipt, Clock, ShoppingCart, Edit2, Trash2, AlertCircle, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
+import { useAuth } from '../AuthContext';
 
 interface Customer {
   id: string;
@@ -29,6 +31,85 @@ const Customers: React.FC = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [history, setHistory] = useState<Transaction[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const { isAdmin } = useAuth();
+
+  // Edit State
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [editFormData, setEditFormData] = useState({ name: '', phone: '', email: '' });
+
+  // Delete State
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // CSV Import State
+  const [isImporting, setIsImporting] = useState(false);
+
+  const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    const reader = new FileReader();
+
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        const lines = text.split('\n').filter(line => line.trim() !== '');
+        
+        if (lines.length < 2) {
+          toast.error('CSV file is empty or missing data');
+          return;
+        }
+
+        // Assume first line is header: Name, Phone, Email
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        const nameIdx = headers.indexOf('name');
+        const phoneIdx = headers.indexOf('phone');
+        const emailIdx = headers.indexOf('email');
+
+        if (nameIdx === -1 || phoneIdx === -1) {
+          toast.error('CSV must have "Name" and "Phone" columns');
+          return;
+        }
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',').map(v => v.trim());
+          const name = values[nameIdx];
+          const phone = values[phoneIdx];
+          const email = emailIdx !== -1 ? values[emailIdx] : '';
+
+          if (name && phone) {
+            try {
+              await addDoc(collection(db, 'customers'), {
+                name,
+                phone,
+                email,
+                totalSpent: 0,
+                lastVisit: new Date().toISOString(),
+                createdAt: new Date().toISOString(),
+                type: 'Imported'
+              });
+              successCount++;
+            } catch (err) {
+              errorCount++;
+            }
+          }
+        }
+
+        toast.success(`Import complete: ${successCount} added, ${errorCount} failed`);
+      } catch (err) {
+        toast.error('Failed to parse CSV file');
+      } finally {
+        setIsImporting(false);
+        // Reset input
+        e.target.value = '';
+      }
+    };
+
+    reader.readAsText(file);
+  };
 
   useEffect(() => {
     const q = query(collection(db, 'customers'), orderBy('name'));
@@ -77,6 +158,46 @@ const Customers: React.FC = () => {
     }
   };
 
+  const handleEdit = (customer: Customer) => {
+    setEditingCustomer(customer);
+    setEditFormData({
+      name: customer.name,
+      phone: customer.phone,
+      email: customer.email || ''
+    });
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCustomer) return;
+
+    try {
+      const customerRef = doc(db, 'customers', editingCustomer.id);
+      await updateDoc(customerRef, {
+        name: editFormData.name,
+        phone: editFormData.phone,
+        email: editFormData.email
+      });
+      toast.success('Customer updated successfully');
+      setEditingCustomer(null);
+    } catch (error) {
+      console.error("Error updating customer:", error);
+      toast.error('Failed to update customer');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try {
+      await deleteDoc(doc(db, 'customers', deleteId));
+      toast.success('Customer deleted successfully');
+      setDeleteId(null);
+    } catch (error) {
+      console.error("Error deleting customer:", error);
+      toast.error('Failed to delete customer');
+    }
+  };
+
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.phone.includes(searchTerm)
@@ -86,15 +207,40 @@ const Customers: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h2 className="text-3xl font-display font-bold text-brand-gold">Customer Directory</h2>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search by name or phone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold w-80"
-          />
+        <div className="flex items-center space-x-4">
+          {isAdmin && (
+            <div className="relative">
+              <input 
+                type="file" 
+                accept=".csv"
+                onChange={handleCSVImport}
+                className="hidden"
+                id="csv-upload"
+                disabled={isImporting}
+              />
+              <label 
+                htmlFor="csv-upload"
+                className={`flex items-center space-x-2 px-4 py-2 border border-brand-gold/30 text-brand-gold rounded-xl hover:bg-brand-gold/10 transition-colors text-sm font-bold cursor-pointer ${isImporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isImporting ? (
+                  <div className="w-4 h-4 border-2 border-brand-gold border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Upload size={18} />
+                )}
+                <span>{isImporting ? 'Importing...' : 'Import CSV'}</span>
+              </label>
+            </div>
+          )}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search by name or phone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold w-64 md:w-80"
+            />
+          </div>
         </div>
       </div>
 
@@ -140,9 +286,27 @@ const Customers: React.FC = () => {
                 <Calendar size={14} />
                 <span>View History</span>
               </button>
-              <button className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-brand-gold transition-colors">
-                <ExternalLink size={16} />
-              </button>
+              <div className="flex items-center space-x-2">
+                {isAdmin && (
+                  <>
+                    <button 
+                      onClick={() => handleEdit(customer)}
+                      className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-brand-gold transition-colors"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => setDeleteId(customer.id)}
+                      className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
+                <button className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-brand-gold transition-colors">
+                  <ExternalLink size={16} />
+                </button>
+              </div>
             </div>
           </motion.div>
         ))}
@@ -152,6 +316,104 @@ const Customers: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Edit Modal */}
+      <AnimatePresence>
+        {editingCustomer && (
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-start sm:justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-card w-full max-w-md p-6 sm:p-8 my-auto sm:my-8"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-cursive font-bold text-brand-gold">Edit Customer</h3>
+                <button onClick={() => setEditingCustomer(null)} className="text-gray-400 hover:text-white">✕</button>
+              </div>
+              <form onSubmit={handleUpdate} className="space-y-4">
+                <div>
+                  <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Full Name</label>
+                  <input 
+                    required
+                    type="text" 
+                    value={editFormData.name}
+                    onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Phone Number</label>
+                  <input 
+                    required
+                    type="text" 
+                    value={editFormData.phone}
+                    onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Email Address (Optional)</label>
+                  <input 
+                    type="email" 
+                    value={editFormData.email}
+                    onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
+                  />
+                </div>
+                <div className="flex space-x-4 mt-8">
+                  <button 
+                    type="button"
+                    onClick={() => setEditingCustomer(null)}
+                    className="flex-1 px-4 py-2 rounded-xl border border-white/10 hover:bg-white/5 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 px-4 py-2 gold-gradient text-brand-dark font-bold rounded-xl shadow-lg"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteId && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="glass-card max-w-sm w-full p-8 text-center"
+            >
+              <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle size={32} />
+              </div>
+              <h3 className="text-xl font-bold mb-2 text-white">Delete Customer?</h3>
+              <p className="text-gray-400 text-sm mb-8">This will remove the customer from your directory. Transaction history will remain in sales records but will no longer be linked to this profile.</p>
+              <div className="flex space-x-3">
+                <button 
+                  onClick={() => setDeleteId(null)}
+                  className="flex-1 py-3 rounded-xl border border-white/10 hover:bg-white/5 transition-colors text-sm font-bold text-white"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleDelete}
+                  className="flex-1 py-3 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* History Modal */}
       <AnimatePresence>
