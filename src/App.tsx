@@ -23,6 +23,12 @@ const AppContent: React.FC = () => {
   const { user, loading, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
+  React.useEffect(() => {
+    const handleSwitch = () => setActiveTab('layby');
+    window.addEventListener('switchTabToLayBy', handleSwitch);
+    return () => window.removeEventListener('switchTabToLayBy', handleSwitch);
+  }, []);
+
   if (loading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-brand-dark">

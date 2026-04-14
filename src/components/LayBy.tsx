@@ -15,6 +15,7 @@ interface Product {
 
 interface LayByAgreement {
   id: string;
+  customerId?: string;
   customerName: string;
   customerPhone: string;
   items: string;
@@ -36,9 +37,11 @@ interface LayByAgreement {
 const LayBy: React.FC = () => {
   const [agreements, setAgreements] = useState<LayByAgreement[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<{id: string, name: string, phone: string}[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [productSearch, setProductSearch] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('1 month');
   const [paymentModal, setPaymentModal] = useState<{ id: string, currentPaid: number, total: number } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -46,6 +49,7 @@ const LayBy: React.FC = () => {
   const [paymentProof, setPaymentProof] = useState('');
   
   const [formData, setFormData] = useState({
+    customerId: '',
     customerName: '',
     customerPhone: '',
     items: '',
@@ -76,11 +80,46 @@ const LayBy: React.FC = () => {
       setProducts(items);
     });
 
+    const qCust = query(collection(db, 'customers'), orderBy('name'));
+    const unsubCust = onSnapshot(qCust, (snapshot) => {
+      const items = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        name: doc.data().name, 
+        phone: doc.data().phone 
+      }));
+      setCustomers(items);
+    });
+
+    // Check for pending customer from other tabs
+    const pending = localStorage.getItem('pendingLayByCustomer');
+    if (pending) {
+      const customer = JSON.parse(pending);
+      setFormData(prev => ({
+        ...prev,
+        customerId: customer.id,
+        customerName: customer.name,
+        customerPhone: customer.phone
+      }));
+      setIsModalOpen(true);
+      localStorage.removeItem('pendingLayByCustomer');
+    }
+
     return () => {
       unsubscribe();
       unsubProd();
+      unsubCust();
     };
   }, []);
+
+  const selectCustomer = (customer: {id: string, name: string, phone: string}) => {
+    setFormData(prev => ({
+      ...prev,
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: customer.phone
+    }));
+    setCustomerSearch('');
+  };
 
   const addToAgreement = (product: Product) => {
     setSelectedProducts(prev => {
@@ -116,17 +155,22 @@ const LayBy: React.FC = () => {
         }
       }
 
-      // 2. Add Customer
-      await addDoc(collection(db, 'customers'), {
-        name: formData.customerName,
-        phone: formData.customerPhone,
-        createdAt: startDate.toISOString(),
-        totalPurchases: 0,
-        type: 'Lay-by'
-      });
+      // 2. Add/Update Customer
+      let customerId = formData.customerId;
+      if (!customerId) {
+        const custRef = await addDoc(collection(db, 'customers'), {
+          name: formData.customerName,
+          phone: formData.customerPhone,
+          createdAt: startDate.toISOString(),
+          totalPurchases: 0,
+          type: 'Lay-by'
+        });
+        customerId = custRef.id;
+      }
 
       // 3. Create Agreement
       await addDoc(collection(db, 'laybys'), {
+        customerId,
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
         items: formData.items,
@@ -155,6 +199,7 @@ const LayBy: React.FC = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setFormData({ 
+      customerId: '',
       customerName: '', 
       customerPhone: '', 
       items: '', 
@@ -165,6 +210,7 @@ const LayBy: React.FC = () => {
     });
     setSelectedProducts([]);
     setProductSearch('');
+    setCustomerSearch('');
   };
 
   const [viewingHistory, setViewingHistory] = useState<string | null>(null);
@@ -388,6 +434,39 @@ const LayBy: React.FC = () => {
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
+                    <div className="relative">
+                      <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Search Existing Customer</label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                        <input 
+                          type="text" 
+                          placeholder="Search by name or phone..."
+                          value={customerSearch}
+                          onChange={(e) => setCustomerSearch(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold text-sm"
+                        />
+                      </div>
+                      
+                      {customerSearch && (
+                        <div className="absolute z-30 mt-1 w-full bg-brand-dark border border-white/10 rounded-xl shadow-2xl max-h-40 overflow-y-auto">
+                          {customers
+                            .filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.phone.includes(customerSearch))
+                            .map(c => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => selectCustomer(c)}
+                                className="w-full px-4 py-2 text-left hover:bg-white/5 text-sm border-b border-white/5 last:border-0"
+                              >
+                                <p className="font-bold text-white">{c.name}</p>
+                                <p className="text-[10px] text-gray-400">{c.phone}</p>
+                              </button>
+                            ))
+                          }
+                        </div>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Customer Name</label>

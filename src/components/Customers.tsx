@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, query, orderBy, where, getDocs, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
-import { Users, Search, Phone, Mail, Calendar, DollarSign, ExternalLink, X, Receipt, Clock, ShoppingCart, Edit2, Trash2, AlertCircle, Upload } from 'lucide-react';
+import { Users, Search, Phone, Mail, Calendar, DollarSign, ExternalLink, X, Receipt, Clock, ShoppingCart, Edit2, Trash2, AlertCircle, Upload, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -145,8 +145,8 @@ const Customers: React.FC = () => {
       })) as Transaction[];
 
       const combined = [...sales, ...laybys].sort((a, b) => {
-        const timeA = a.timestamp?.seconds || 0;
-        const timeB = b.timestamp?.seconds || 0;
+        const timeA = a.timestamp?.seconds || (a as any).createdAt ? new Date((a as any).createdAt).getTime() / 1000 : 0;
+        const timeB = b.timestamp?.seconds || (b as any).createdAt ? new Date((b as any).createdAt).getTime() / 1000 : 0;
         return timeB - timeA;
       });
 
@@ -438,7 +438,31 @@ const Customers: React.FC = () => {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="px-6 py-4 bg-white/5 border-b border-white/10 flex justify-between items-center">
+                <div className="flex space-x-4">
+                  <div className="text-center">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-widest">Total Spent</p>
+                    <p className="text-sm font-bold text-brand-gold">ZK {selectedCustomer.totalSpent?.toLocaleString() || 0}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    localStorage.setItem('pendingLayByCustomer', JSON.stringify({
+                      id: selectedCustomer.id,
+                      name: selectedCustomer.name,
+                      phone: selectedCustomer.phone
+                    }));
+                    window.dispatchEvent(new Event('switchTabToLayBy'));
+                    setSelectedCustomer(null);
+                  }}
+                  className="flex items-center space-x-2 px-3 py-1.5 bg-brand-gold text-brand-dark rounded-lg text-xs font-bold hover:scale-105 transition-transform"
+                >
+                  <Plus size={14} />
+                  <span>New Lay-by</span>
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {loadingHistory ? (
                   <div className="flex flex-col items-center justify-center py-20 space-y-4">
                     <div className="w-8 h-8 border-2 border-brand-gold border-t-transparent rounded-full animate-spin" />
@@ -449,38 +473,97 @@ const Customers: React.FC = () => {
                     No transaction history found for this customer.
                   </div>
                 ) : (
-                  history.map((tx) => (
-                    <div key={tx.id} className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center space-x-3">
-                          <div className={`p-2 rounded-lg ${tx.type === 'sale' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                            {tx.type === 'sale' ? <ShoppingCart size={18} /> : <Clock size={18} />}
-                          </div>
-                          <div>
-                            <p className="font-bold capitalize">{tx.type}</p>
-                            <p className="text-[10px] text-gray-500">
-                              {tx.timestamp ? format(tx.timestamp.toDate(), 'MMM dd, yyyy HH:mm') : 'Date unknown'}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-mono font-bold text-brand-gold">ZK {tx.total.toLocaleString()}</p>
-                          {tx.status && (
-                            <span className="text-[10px] uppercase tracking-widest text-brand-pink">{tx.status}</span>
-                          )}
+                  <>
+                    {/* Active Lay-bys Section */}
+                    {history.some(tx => tx.type === 'layby' && tx.status === 'active') && (
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-bold text-brand-gold uppercase tracking-widest flex items-center space-x-2">
+                          <Clock size={14} />
+                          <span>Active Lay-by Agreements</span>
+                        </h4>
+                        <div className="grid grid-cols-1 gap-3">
+                          {history
+                            .filter(tx => tx.type === 'layby' && tx.status === 'active')
+                            .map(lb => (
+                              <div key={lb.id} className="p-4 rounded-xl bg-brand-gold/5 border border-brand-gold/20 space-y-3">
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <p className="font-bold text-white">{lb.items}</p>
+                                    <p className="text-[10px] text-gray-400">
+                                      Due: {format(new Date((lb as any).dueDate), 'MMM dd, yyyy')}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-mono font-bold text-brand-gold">ZK {lb.total.toLocaleString()}</p>
+                                    <p className="text-[10px] text-brand-pink">
+                                      Paid: ZK {(lb as any).paidAmount?.toLocaleString()}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full gold-gradient" 
+                                    style={{ width: `${((lb as any).paidAmount / lb.total) * 100}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ))
+                          }
                         </div>
                       </div>
-                      
-                      <div className="pl-11 space-y-1">
-                        {tx.items?.map((item: any, idx: number) => (
-                          <div key={idx} className="flex justify-between text-xs text-gray-400">
-                            <span>{item.name} x{item.quantity}</span>
-                            <span>ZK {(item.price * item.quantity).toLocaleString()}</span>
+                    )}
+
+                    {/* Full History Section */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center space-x-2">
+                        <Receipt size={14} />
+                        <span>Recent Transactions</span>
+                      </h4>
+                      <div className="space-y-4">
+                        {history.map((tx) => (
+                          <div key={tx.id} className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                            <div className="flex justify-between items-start">
+                              <div className="flex items-center space-x-3">
+                                <div className={`p-2 rounded-lg ${tx.type === 'sale' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                                  {tx.type === 'sale' ? <ShoppingCart size={18} /> : <Clock size={18} />}
+                                </div>
+                                <div>
+                                  <p className="font-bold capitalize">{tx.type}</p>
+                                  <p className="text-[10px] text-gray-500">
+                                    {tx.timestamp ? format(tx.timestamp.toDate(), 'MMM dd, yyyy HH:mm') : 
+                                     (tx as any).createdAt ? format(new Date((tx as any).createdAt), 'MMM dd, yyyy HH:mm') : 'Date unknown'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-mono font-bold text-brand-gold">ZK {tx.total.toLocaleString()}</p>
+                                {tx.status && (
+                                  <span className={`text-[10px] uppercase tracking-widest ${tx.status === 'completed' ? 'text-green-400' : 'text-brand-pink'}`}>
+                                    {tx.status}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="pl-11 space-y-1">
+                              {tx.items ? (
+                                Array.isArray(tx.items) ? (
+                                  tx.items.map((item: any, idx: number) => (
+                                    <div key={idx} className="flex justify-between text-xs text-gray-400">
+                                      <span>{item.name} x{item.quantity}</span>
+                                      <span>ZK {(item.price * item.quantity).toLocaleString()}</span>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="text-xs text-gray-400">{tx.items}</div>
+                                )
+                              ) : null}
+                            </div>
                           </div>
                         ))}
                       </div>
                     </div>
-                  ))
+                  </>
                 )}
               </div>
             </motion.div>
