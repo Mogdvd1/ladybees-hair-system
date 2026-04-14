@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, query, orderBy, where, getDocs, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
-import { Users, Search, Phone, Mail, Calendar, DollarSign, ExternalLink, X, Receipt, Clock, ShoppingCart, Edit2, Trash2, AlertCircle, Upload, Plus } from 'lucide-react';
+import { Users, Search, Phone, Mail, Calendar, DollarSign, ExternalLink, X, Receipt, Clock, ShoppingCart, Edit2, Trash2, AlertCircle, Upload, Plus, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -12,8 +12,9 @@ interface Customer {
   name: string;
   phone: string;
   email?: string;
-  totalSpent: number;
-  lastVisit: string;
+  totalSpent?: number;
+  totalPurchases?: number; // Backward compatibility
+  lastVisit?: string;
 }
 
 interface Transaction {
@@ -28,6 +29,7 @@ interface Transaction {
 const Customers: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [history, setHistory] = useState<Transaction[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -231,6 +233,22 @@ const Customers: React.FC = () => {
               </label>
             </div>
           )}
+          <div className="flex items-center bg-white/5 rounded-xl p-1 border border-white/10">
+            <button 
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-brand-gold text-brand-dark shadow-lg' : 'text-gray-400 hover:text-white'}`}
+              title="Grid View"
+            >
+              <LayoutGrid size={18} />
+            </button>
+            <button 
+              onClick={() => setViewMode('list')}
+              className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-brand-gold text-brand-dark shadow-lg' : 'text-gray-400 hover:text-white'}`}
+              title="List View"
+            >
+              <ListIcon size={18} />
+            </button>
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input 
@@ -244,78 +262,147 @@ const Customers: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCustomers.map((customer) => (
-          <motion.div 
-            key={customer.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="glass-card p-6 space-y-4 hover:border-brand-gold/30 transition-all group"
-          >
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 rounded-full bg-brand-gold/10 flex items-center justify-center text-brand-gold font-display text-xl font-bold">
-                {customer.name.charAt(0)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-lg truncate group-hover:text-brand-gold transition-colors">{customer.name}</h4>
-                <div className="flex items-center text-xs text-gray-400 space-x-2">
-                  <Phone size={12} />
-                  <span>{customer.phone}</span>
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredCustomers.map((customer) => (
+            <motion.div 
+              key={customer.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-card p-6 space-y-4 hover:border-brand-gold/30 transition-all group"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 rounded-full bg-brand-gold/10 flex items-center justify-center text-brand-gold font-display text-xl font-bold">
+                  {customer.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-lg truncate group-hover:text-brand-gold transition-colors">{customer.name}</h4>
+                  <div className="flex items-center text-xs text-gray-400 space-x-2">
+                    <Phone size={12} />
+                    <span>{customer.phone}</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4 py-4 border-y border-white/5">
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Total Spent</p>
-                <p className="font-mono font-bold text-brand-gold">K{customer.totalSpent?.toLocaleString() || 0}</p>
+              <div className="grid grid-cols-2 gap-4 py-4 border-y border-white/5">
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Total Spent</p>
+                  <p className="font-mono font-bold text-brand-gold">
+                    ZK {(customer.totalSpent || customer.totalPurchases || 0).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Last Visit</p>
+                  <p className="text-sm text-white">
+                    {customer.lastVisit ? format(new Date(customer.lastVisit), 'MMM dd, yyyy') : 'N/A'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Last Visit</p>
-                <p className="text-sm">
-                  {customer.lastVisit ? format(new Date(customer.lastVisit), 'MMM dd, yyyy') : 'N/A'}
-                </p>
-              </div>
-            </div>
 
-            <div className="flex justify-between items-center pt-2">
-              <button 
-                onClick={() => fetchHistory(customer)}
-                className="text-xs text-brand-pink hover:underline flex items-center space-x-1"
-              >
-                <Calendar size={14} />
-                <span>View History</span>
-              </button>
-              <div className="flex items-center space-x-2">
-                {isAdmin && (
-                  <>
-                    <button 
-                      onClick={() => handleEdit(customer)}
-                      className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-brand-gold transition-colors"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button 
-                      onClick={() => setDeleteId(customer.id)}
-                      className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-red-400 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </>
-                )}
-                <button className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-brand-gold transition-colors">
-                  <ExternalLink size={16} />
+              <div className="flex justify-between items-center pt-2">
+                <button 
+                  onClick={() => fetchHistory(customer)}
+                  className="text-xs text-brand-pink hover:underline flex items-center space-x-1"
+                >
+                  <Calendar size={14} />
+                  <span>View History</span>
                 </button>
+                <div className="flex items-center space-x-2">
+                  {isAdmin && (
+                    <>
+                      <button 
+                        onClick={() => handleEdit(customer)}
+                        className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-brand-gold transition-colors"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button 
+                        onClick={() => setDeleteId(customer.id)}
+                        className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </>
+                  )}
+                  <button className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-brand-gold transition-colors">
+                    <ExternalLink size={16} />
+                  </button>
+                </div>
               </div>
-            </div>
-          </motion.div>
-        ))}
-        {filteredCustomers.length === 0 && (
-          <div className="col-span-full py-20 text-center text-gray-500 italic">
-            No customers found matching your search.
+            </motion.div>
+          ))}
+        </div>
+      ) : (
+        <div className="glass-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-white/5 border-b border-white/10">
+                  <th className="px-6 py-4 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Customer</th>
+                  <th className="px-6 py-4 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Phone</th>
+                  <th className="px-6 py-4 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Total Spent</th>
+                  <th className="px-6 py-4 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Last Visit</th>
+                  <th className="px-6 py-4 text-[10px] text-gray-400 uppercase tracking-widest font-bold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredCustomers.map((customer) => (
+                  <tr key={customer.id} className="hover:bg-white/5 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-brand-gold/10 flex items-center justify-center text-brand-gold text-xs font-bold">
+                          {customer.name.charAt(0)}
+                        </div>
+                        <span className="font-bold text-white group-hover:text-brand-gold transition-colors">{customer.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-400">{customer.phone}</td>
+                    <td className="px-6 py-4 font-mono text-brand-gold font-bold">ZK {(customer.totalSpent || customer.totalPurchases || 0).toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm text-gray-300">
+                      {customer.lastVisit ? format(new Date(customer.lastVisit), 'MMM dd, yyyy') : 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end space-x-2">
+                        <button 
+                          onClick={() => fetchHistory(customer)}
+                          className="p-2 text-brand-pink hover:bg-brand-pink/10 rounded-lg transition-colors"
+                          title="History"
+                        >
+                          <Calendar size={16} />
+                        </button>
+                        {isAdmin && (
+                          <>
+                            <button 
+                              onClick={() => handleEdit(customer)}
+                              className="p-2 text-gray-400 hover:text-brand-gold hover:bg-brand-gold/10 rounded-lg transition-colors"
+                              title="Edit"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => setDeleteId(customer.id)}
+                              className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {filteredCustomers.length === 0 && (
+        <div className="col-span-full py-20 text-center text-gray-500 italic">
+          No customers found matching your search.
+        </div>
+      )}
 
       {/* Edit Modal */}
       <AnimatePresence>

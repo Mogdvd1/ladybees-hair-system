@@ -86,16 +86,30 @@ const Sales: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      // 1. Create or find customer (simplified for now)
+      // 1. Create or find customer
       let customerId = 'walk-in';
       if (customerName && customerPhone) {
-        const customerRef = await addDoc(collection(db, 'customers'), {
-          name: customerName,
-          phone: customerPhone,
-          totalSpent: total,
-          lastVisit: new Date().toISOString()
-        });
-        customerId = customerRef.id;
+        const q = query(collection(db, 'customers'), where('phone', '==', customerPhone));
+        const snap = await getDocs(q);
+        
+        if (!snap.empty) {
+          customerId = snap.docs[0].id;
+          const customerRef = doc(db, 'customers', customerId);
+          await updateDoc(customerRef, {
+            lastVisit: new Date().toISOString(),
+            totalSpent: increment(total)
+          });
+        } else {
+          const customerRef = await addDoc(collection(db, 'customers'), {
+            name: customerName,
+            phone: customerPhone,
+            totalSpent: total,
+            lastVisit: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            type: 'Sale'
+          });
+          customerId = customerRef.id;
+        }
       }
 
       // 2. Create Sale Record

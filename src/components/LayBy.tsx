@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, query, addDoc, doc, updateDoc, arrayUnion, orderBy, increment, serverTimestamp } from 'firebase/firestore';
-import { Clock, Search, Plus, Calendar, AlertCircle, Trash2, Package, CheckCircle2 } from 'lucide-react';
+import { collection, onSnapshot, query, addDoc, doc, updateDoc, arrayUnion, orderBy, increment, serverTimestamp, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { Clock, Search, Plus, Calendar, AlertCircle, Trash2, Package, CheckCircle2, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { format, addDays, isAfter, subDays } from 'date-fns';
@@ -40,6 +40,7 @@ const LayBy: React.FC = () => {
   const [customers, setCustomers] = useState<{id: string, name: string, phone: string}[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [productSearch, setProductSearch] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('1 month');
@@ -47,6 +48,8 @@ const LayBy: React.FC = () => {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
   const [paymentProof, setPaymentProof] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'overdue' | 'completed'>('all');
   
   const [formData, setFormData] = useState({
     customerId: '',
@@ -158,14 +161,35 @@ const LayBy: React.FC = () => {
       // 2. Add/Update Customer
       let customerId = formData.customerId;
       if (!customerId) {
-        const custRef = await addDoc(collection(db, 'customers'), {
-          name: formData.customerName,
-          phone: formData.customerPhone,
-          createdAt: startDate.toISOString(),
-          totalPurchases: 0,
-          type: 'Lay-by'
+        // Try to find existing customer by phone first to avoid duplicates
+        const q = query(collection(db, 'customers'), where('phone', '==', formData.customerPhone));
+        const snap = await getDocs(q);
+        
+        if (!snap.empty) {
+          customerId = snap.docs[0].id;
+          const customerRef = doc(db, 'customers', customerId);
+          await updateDoc(customerRef, {
+            lastVisit: new Date().toISOString(),
+            totalSpent: increment(formData.deposit)
+          });
+        } else {
+          const custRef = await addDoc(collection(db, 'customers'), {
+            name: formData.customerName,
+            phone: formData.customerPhone,
+            createdAt: startDate.toISOString(),
+            totalSpent: formData.deposit,
+            lastVisit: new Date().toISOString(),
+            type: 'Lay-by'
+          });
+          customerId = custRef.id;
+        }
+      } else {
+        // Update existing selected customer
+        const customerRef = doc(db, 'customers', customerId);
+        await updateDoc(customerRef, {
+          lastVisit: new Date().toISOString(),
+          totalSpent: increment(formData.deposit)
         });
-        customerId = custRef.id;
       }
 
       // 3. Create Agreement
@@ -252,6 +276,17 @@ const LayBy: React.FC = () => {
           proofImage: paymentProof
         })
       });
+
+      // Update customer totalSpent
+      const agreement = agreements.find(a => a.id === id);
+      if (agreement?.customerId) {
+        const customerRef = doc(db, 'customers', agreement.customerId);
+        await updateDoc(customerRef, {
+          totalSpent: increment(amount),
+          lastVisit: new Date().toISOString()
+        });
+      }
+
       toast.success('Payment recorded!');
       setPaymentModal(null);
       setPaymentAmount('');
@@ -263,16 +298,55 @@ const LayBy: React.FC = () => {
     }
   };
 
-  const filteredAgreements = agreements.filter(a => 
-    a.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    a.customerPhone.includes(searchTerm)
-  );
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try {
+      await deleteDoc(doc(db, 'laybys', deleteId));
+      toast.success('Agreement deleted');
+      setDeleteId(null);
+    } catch (error) {
+      toast.error('Failed to delete agreement');
+    }
+  };
+
+  const filteredAgreements = agreements.filter(a => {
+    const matchesSearch = a.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         a.customerPhone.includes(searchTerm);
+    
+    if (!matchesSearch) return false;
+
+    if (statusFilter === 'all') return true;
+    
+    const isOverdue = a.status === 'active' && isAfter(new Date(), new Date(a.dueDate));
+    
+    if (statusFilter === 'overdue') return isOverdue;
+    if (statusFilter === 'active') return a.status === 'active' && !isOverdue;
+    if (statusFilter === 'completed') return a.status === 'completed';
+    
+    return true;
+  });
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h2 className="text-3xl font-cursive font-bold text-brand-gold">Lay-by Management</h2>
         <div className="flex items-center space-x-4">
+          <div className="flex items-center bg-white/5 rounded-xl p-1 border border-white/10">
+            <button 
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-brand-gold text-brand-dark shadow-lg' : 'text-gray-400 hover:text-white'}`}
+              title="Grid View"
+            >
+              <LayoutGrid size={18} />
+            </button>
+            <button 
+              onClick={() => setViewMode('list')}
+              className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-brand-gold text-brand-dark shadow-lg' : 'text-gray-400 hover:text-white'}`}
+              title="List View"
+            >
+              <ListIcon size={18} />
+            </button>
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input 
@@ -293,133 +367,231 @@ const LayBy: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredAgreements.map((agreement) => {
-          const isOverdue = agreement.status === 'active' && isAfter(new Date(), new Date(agreement.dueDate));
-          const progress = (agreement.paidAmount / agreement.totalAmount) * 100;
-
-          return (
-            <motion.div 
-              key={agreement.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`glass-card p-6 relative overflow-hidden ${isOverdue ? 'border-red-500/50' : ''}`}
-            >
-              {isOverdue && (
-                <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">
-                  Overdue
-                </div>
-              )}
-              
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h4 className="text-lg font-bold text-white">{agreement.customerName}</h4>
-                  <p className="text-xs text-gray-400">{agreement.customerPhone}</p>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-                    agreement.status === 'completed' ? 'bg-green-400/10 text-green-400' : 'bg-brand-gold/10 text-brand-gold'
-                  }`}>
-                    {agreement.status}
-                  </span>
-                  <button 
-                    onClick={() => setViewingHistory(agreement.id)}
-                    className="text-[10px] text-brand-pink hover:underline uppercase tracking-widest"
-                  >
-                    View History
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3 mb-6">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Items:</span>
-                  <span className="text-white truncate max-w-[150px]">{agreement.items}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Due Date:</span>
-                  <span className="text-brand-pink">{format(new Date(agreement.dueDate), 'MMM dd, yyyy')}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Period:</span>
-                  <span className="text-gray-300 uppercase text-[10px]">{agreement.period}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2 mb-6">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-gray-400">Progress</span>
-                  <span className="text-brand-gold font-mono">ZK {agreement.paidAmount.toLocaleString()} / ZK {agreement.totalAmount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-gray-400">Balance Due</span>
-                  <span className="text-brand-pink font-mono font-bold">ZK {(agreement.totalAmount - agreement.paidAmount).toLocaleString()}</span>
-                </div>
-                <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progress}%` }}
-                    className="h-full gold-gradient"
-                  />
-                </div>
-              </div>
-
-              {agreement.status === 'active' && (
-                <button 
-                  onClick={() => {
-                    console.log('Opening payment modal for:', agreement.id);
-                    setPaymentModal({ id: agreement.id, currentPaid: agreement.paidAmount, total: agreement.totalAmount });
-                  }}
-                  className="w-full py-2 rounded-lg border border-brand-gold/30 text-brand-gold text-sm font-bold hover:bg-brand-gold/10 transition-colors flex items-center justify-center space-x-2 relative z-20"
-                >
-                  <Plus size={16} />
-                  <span>Record Payment</span>
-                </button>
-              )}
-
-              {/* Payment History Modal Overlay */}
-              <AnimatePresence>
-                {viewingHistory === agreement.id && (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute inset-0 bg-brand-dark/95 backdrop-blur-md p-6 z-10 overflow-y-auto"
-                  >
-                    <div className="flex justify-between items-center mb-6">
-                      <h5 className="text-brand-gold font-bold uppercase tracking-widest text-xs">Payment History</h5>
-                      <button onClick={() => setViewingHistory(null)} className="text-gray-400 hover:text-white"><Trash2 size={16} className="rotate-45" /></button>
-                    </div>
-                    <div className="space-y-4">
-                      {agreement.payments?.map((p, idx) => (
-                        <div key={idx} className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-1">
-                              <p className="text-xs font-bold text-white">ZK {p.amount.toLocaleString()}</p>
-                              <span className="text-[10px] text-brand-pink italic">{p.note}</span>
-                            </div>
-                            <p className="text-[10px] text-gray-400">{format(new Date(p.date), 'MMM dd, HH:mm')}</p>
-                            {p.proofImage && (
-                              <a 
-                                href={p.proofImage} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="mt-2 block text-[10px] text-brand-gold hover:underline flex items-center space-x-1"
-                              >
-                                <span>View Proof</span>
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          );
-        })}
+      <div className="flex flex-wrap items-center gap-2">
+        {(['all', 'active', 'overdue', 'completed'] as const).map((status) => (
+          <button
+            key={status}
+            onClick={() => setStatusFilter(status)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${
+              statusFilter === status 
+                ? 'bg-brand-gold border-brand-gold text-brand-dark shadow-lg shadow-brand-gold/20' 
+                : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {status}
+            <span className="ml-2 px-1.5 py-0.5 rounded-md bg-black/20 text-[10px]">
+              {status === 'all' 
+                ? agreements.length 
+                : agreements.filter(a => {
+                    const isOverdue = a.status === 'active' && isAfter(new Date(), new Date(a.dueDate));
+                    if (status === 'overdue') return isOverdue;
+                    if (status === 'active') return a.status === 'active' && !isOverdue;
+                    if (status === 'completed') return a.status === 'completed';
+                    return false;
+                  }).length
+              }
+            </span>
+          </button>
+        ))}
       </div>
+
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredAgreements.map((agreement) => {
+            const isOverdue = agreement.status === 'active' && isAfter(new Date(), new Date(agreement.dueDate));
+            const progress = (agreement.paidAmount / agreement.totalAmount) * 100;
+
+            return (
+              <motion.div 
+                key={agreement.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`glass-card p-6 relative overflow-hidden ${isOverdue ? 'border-red-500/50' : ''}`}
+              >
+                {isOverdue && (
+                  <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">
+                    Overdue
+                  </div>
+                )}
+                
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h4 className="text-lg font-bold text-white">{agreement.customerName}</h4>
+                    <p className="text-xs text-gray-400">{agreement.customerPhone}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                      agreement.status === 'completed' ? 'bg-green-400/10 text-green-400' : 'bg-brand-gold/10 text-brand-gold'
+                    }`}>
+                      {agreement.status}
+                    </span>
+                    <button 
+                      onClick={() => setViewingHistory(agreement.id)}
+                      className="text-[10px] text-brand-pink hover:underline uppercase tracking-widest"
+                    >
+                      View History
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Items:</span>
+                    <span className="text-white truncate max-w-[150px]">{agreement.items}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Due Date:</span>
+                    <span className="text-brand-pink">{format(new Date(agreement.dueDate), 'MMM dd, yyyy')}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Period:</span>
+                    <span className="text-gray-300 uppercase text-[10px]">{agreement.period}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 mb-6">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-gray-400">Progress</span>
+                    <span className="text-brand-gold font-mono">ZK {agreement.paidAmount.toLocaleString()} / ZK {agreement.totalAmount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-gray-400">Balance Due</span>
+                    <span className="text-brand-pink font-mono font-bold">ZK {(agreement.totalAmount - agreement.paidAmount).toLocaleString()}</span>
+                  </div>
+                  <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progress}%` }}
+                      className="h-full gold-gradient"
+                    />
+                  </div>
+                </div>
+
+                {agreement.status === 'active' && (
+                  <button 
+                    onClick={() => {
+                      console.log('Opening payment modal for:', agreement.id);
+                      setPaymentModal({ id: agreement.id, currentPaid: agreement.paidAmount, total: agreement.totalAmount });
+                    }}
+                    className="w-full py-2 rounded-lg border border-brand-gold/30 text-brand-gold text-sm font-bold hover:bg-brand-gold/10 transition-colors flex items-center justify-center space-x-2 relative z-20"
+                  >
+                    <Plus size={16} />
+                    <span>Record Payment</span>
+                  </button>
+                )}
+
+                {/* Payment History Modal Overlay */}
+                <AnimatePresence>
+                  {viewingHistory === agreement.id && (
+                    <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute inset-0 bg-brand-dark/95 backdrop-blur-md p-6 z-10 overflow-y-auto"
+                    >
+                      <div className="flex justify-between items-center mb-6">
+                        <h5 className="text-brand-gold font-bold uppercase tracking-widest text-xs">Payment History</h5>
+                        <button onClick={() => setViewingHistory(null)} className="text-gray-400 hover:text-white"><Trash2 size={16} className="rotate-45" /></button>
+                      </div>
+                      <div className="space-y-4">
+                        {agreement.payments?.map((p, idx) => (
+                          <div key={idx} className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="text-xs font-bold text-white">ZK {p.amount.toLocaleString()}</p>
+                                <span className="text-[10px] text-brand-pink italic">{p.note}</span>
+                              </div>
+                              <p className="text-[10px] text-gray-400">{format(new Date(p.date), 'MMM dd, HH:mm')}</p>
+                              {p.proofImage && (
+                                <a 
+                                  href={p.proofImage} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="mt-2 block text-[10px] text-brand-gold hover:underline flex items-center space-x-1"
+                                >
+                                  <span>View Proof</span>
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="glass-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-white/5 border-b border-white/10">
+                  <th className="px-6 py-4 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Customer</th>
+                  <th className="px-6 py-4 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Items</th>
+                  <th className="px-6 py-4 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Total</th>
+                  <th className="px-6 py-4 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Balance</th>
+                  <th className="px-6 py-4 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Due Date</th>
+                  <th className="px-6 py-4 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Status</th>
+                  <th className="px-6 py-4 text-[10px] text-gray-400 uppercase tracking-widest font-bold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredAgreements.map((agreement) => {
+                  const balance = agreement.totalAmount - agreement.paidAmount;
+                  return (
+                    <tr key={agreement.id} className="hover:bg-white/5 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="font-bold text-white group-hover:text-brand-gold transition-colors">{agreement.customerName}</p>
+                          <p className="text-[10px] text-gray-500">{agreement.customerPhone}</p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-400 truncate max-w-[200px]">{agreement.items}</td>
+                      <td className="px-6 py-4 font-mono text-gray-300">ZK {agreement.totalAmount.toLocaleString()}</td>
+                      <td className="px-6 py-4 font-mono text-brand-pink font-bold">ZK {balance.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-sm text-gray-400">{format(new Date(agreement.dueDate), 'MMM dd, yyyy')}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                          agreement.status === 'completed' 
+                            ? 'bg-green-500/10 text-green-500' 
+                            : (agreement.status === 'active' && isAfter(new Date(), new Date(agreement.dueDate)))
+                              ? 'bg-red-500/10 text-red-500'
+                              : 'bg-brand-pink/10 text-brand-pink'
+                        }`}>
+                          {(agreement.status === 'active' && isAfter(new Date(), new Date(agreement.dueDate))) ? 'overdue' : agreement.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end space-x-2">
+                          {agreement.status === 'active' && (
+                            <button 
+                              onClick={() => setPaymentModal({ id: agreement.id, currentPaid: agreement.paidAmount, total: agreement.totalAmount })}
+                              className="p-2 text-brand-gold hover:bg-brand-gold/10 rounded-lg transition-colors"
+                              title="Payment"
+                            >
+                              <Plus size={16} />
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => setDeleteId(agreement.id)}
+                            className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <AnimatePresence>
         {isModalOpen && (
@@ -725,6 +897,37 @@ const LayBy: React.FC = () => {
                     Confirm
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="glass-card p-8 max-w-sm w-full text-center"
+            >
+              <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="text-red-500" size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Delete Agreement?</h3>
+              <p className="text-gray-400 text-sm mb-6">This action cannot be undone. All payment history will be lost.</p>
+              <div className="flex space-x-3">
+                <button 
+                  onClick={() => setDeleteId(null)}
+                  className="flex-1 py-2 rounded-xl border border-white/10 hover:bg-white/5 transition-colors font-bold text-sm"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleDelete}
+                  className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg transition-colors text-sm"
+                >
+                  Delete
+                </button>
               </div>
             </motion.div>
           </div>
