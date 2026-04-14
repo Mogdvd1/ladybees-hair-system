@@ -156,12 +156,12 @@ const Customers: React.FC = () => {
       {/* History Modal */}
       <AnimatePresence>
         {selectedCustomer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-start sm:justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="glass-card w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col"
+              className="glass-card w-full max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-hidden flex flex-col my-auto sm:my-8"
             >
               <div className="p-6 border-b border-white/10 flex justify-between items-center bg-brand-dark/50">
                 <div>

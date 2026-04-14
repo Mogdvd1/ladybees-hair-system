@@ -292,12 +292,12 @@ const Products: React.FC = () => {
 
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-start sm:justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="glass-card w-full max-w-2xl p-8 my-8"
+              className="glass-card w-full max-w-2xl p-6 sm:p-8 my-auto sm:my-8"
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-cursive font-bold text-brand-gold">
@@ -405,7 +405,7 @@ const Products: React.FC = () => {
                         <label className="block text-[10px] text-gray-400 uppercase mb-1">Buying Cost (ZK)</label>
                         <input 
                           type="number" 
-                          value={formData.buyingCost}
+                          value={formData.buyingCost || ''}
                           onChange={(e) => setFormData({...formData, buyingCost: Number(e.target.value)})}
                           className="w-full px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:border-brand-gold text-sm"
                         />
@@ -414,7 +414,7 @@ const Products: React.FC = () => {
                         <label className="block text-[10px] text-gray-400 uppercase mb-1">Shipping (ZK)</label>
                         <input 
                           type="number" 
-                          value={formData.shippingCost}
+                          value={formData.shippingCost || ''}
                           onChange={(e) => setFormData({...formData, shippingCost: Number(e.target.value)})}
                           className="w-full px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:border-brand-gold text-sm"
                         />
@@ -423,7 +423,7 @@ const Products: React.FC = () => {
                         <label className="block text-[10px] text-gray-400 uppercase mb-1">Logistics (ZK)</label>
                         <input 
                           type="number" 
-                          value={formData.logisticsCost}
+                          value={formData.logisticsCost || ''}
                           onChange={(e) => setFormData({...formData, logisticsCost: Number(e.target.value)})}
                           className="w-full px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:border-brand-gold text-sm"
                         />
@@ -432,7 +432,7 @@ const Products: React.FC = () => {
                         <label className="block text-[10px] text-gray-400 uppercase mb-1">Markup (%)</label>
                         <input 
                           type="number" 
-                          value={formData.markupPercent}
+                          value={formData.markupPercent || ''}
                           onChange={(e) => setFormData({...formData, markupPercent: Number(e.target.value)})}
                           className="w-full px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:border-brand-gold text-sm"
                         />
@@ -457,7 +457,7 @@ const Products: React.FC = () => {
                     <input 
                       required
                       type="number" 
-                      value={formData.stock}
+                      value={formData.stock || ''}
                       onChange={(e) => setFormData({...formData, stock: Number(e.target.value)})}
                       className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
                     />
@@ -467,7 +467,7 @@ const Products: React.FC = () => {
                     <input 
                       required
                       type="number" 
-                      value={formData.minStock}
+                      value={formData.minStock || ''}
                       onChange={(e) => setFormData({...formData, minStock: Number(e.target.value)})}
                       className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
                     />

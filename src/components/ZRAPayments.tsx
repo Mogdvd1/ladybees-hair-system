@@ -160,12 +160,12 @@ const ZRAPayments: React.FC = () => {
 
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-start sm:justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="glass-card w-full max-w-md p-8"
+              className="glass-card w-full max-w-md p-6 sm:p-8 my-auto sm:my-8"
             >
               <h3 className="text-2xl font-display font-bold text-brand-gold mb-6 text-center">Record ZRA Payment</h3>
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -198,7 +198,7 @@ const ZRAPayments: React.FC = () => {
                   <input 
                     required
                     type="number" 
-                    value={formData.amount}
+                    value={formData.amount || ''}
                     onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})}
                     className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold font-mono"
                   />

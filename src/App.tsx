@@ -13,7 +13,7 @@ import LayBy from './components/LayBy';
 import Customers from './components/Customers';
 import Reports from './components/Reports';
 import CurrencyConverter from './components/CurrencyConverter';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { LogIn, LayoutDashboard } from 'lucide-react';
 import { signInWithGoogle } from './firebase';
@@ -67,7 +67,18 @@ const AppContent: React.FC = () => {
               <p className="text-xs text-gray-400 mt-1">Use ladybeeshairwithflair@gmail.com for CEO privileges.</p>
             </div>
             <button 
-              onClick={signInWithGoogle}
+              onClick={async () => {
+                try {
+                  await signInWithGoogle();
+                } catch (error: any) {
+                  console.error("Login error:", error);
+                  if (error.code === 'auth/unauthorized-domain') {
+                    toast.error("Domain not authorized. Please add this URL to your Firebase Console under Authentication -> Settings -> Authorized Domains.");
+                  } else {
+                    toast.error(`Login failed: ${error.message}`);
+                  }
+                }
+              }}
               className="w-full py-4 gold-gradient text-brand-dark font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-transform flex items-center justify-center space-x-3"
             >
               <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />

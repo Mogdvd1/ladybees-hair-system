@@ -303,12 +303,12 @@ const LayBy: React.FC = () => {
 
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-start sm:justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="glass-card w-full max-w-md p-8"
+              className="glass-card w-full max-w-md p-6 sm:p-8 my-auto sm:my-8"
             >
               <h3 className="text-2xl font-cursive font-bold text-brand-gold mb-6">New Lay-by Agreement</h3>
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -349,7 +349,7 @@ const LayBy: React.FC = () => {
                     <input 
                       required
                       type="number" 
-                      value={formData.totalAmount}
+                      value={formData.totalAmount || ''}
                       onChange={(e) => setFormData({...formData, totalAmount: Number(e.target.value)})}
                       className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
                     />
@@ -359,7 +359,7 @@ const LayBy: React.FC = () => {
                     <input 
                       required
                       type="number" 
-                      value={formData.deposit}
+                      value={formData.deposit || ''}
                       onChange={(e) => setFormData({...formData, deposit: Number(e.target.value)})}
                       className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold"
                     />
@@ -405,11 +405,11 @@ const LayBy: React.FC = () => {
         )}
 
         {paymentModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[60] flex flex-col items-center justify-start sm:justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="glass-card w-full max-w-sm p-8"
+              className="glass-card w-full max-w-sm p-6 sm:p-8 my-auto sm:my-8"
             >
               <h3 className="text-xl font-bold text-brand-gold mb-2">Record Payment</h3>
               <p className="text-xs text-gray-400 mb-6 uppercase tracking-widest">Agreement: {agreements.find(a => a.id === paymentModal.id)?.customerName}</p>
@@ -420,7 +420,7 @@ const LayBy: React.FC = () => {
                   <input 
                     autoFocus
                     type="number" 
-                    value={paymentAmount}
+                    value={paymentAmount || ''}
                     onChange={(e) => setPaymentAmount(e.target.value)}
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold text-lg font-mono"
                     placeholder="0.00"

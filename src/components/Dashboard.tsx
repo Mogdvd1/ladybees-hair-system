@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
+import { db } from '../firebase';
+import { collection, onSnapshot, query, orderBy, limit, Timestamp, where } from 'firebase/firestore';
 import { 
   TrendingUp, 
   Package, 
@@ -19,36 +21,102 @@ import {
   Bar
 } from 'recharts';
 import { motion } from 'motion/react';
-
-const data = [
-  { name: 'Mon', sales: 4000 },
-  { name: 'Tue', sales: 3000 },
-  { name: 'Wed', sales: 2000 },
-  { name: 'Thu', sales: 2780 },
-  { name: 'Fri', sales: 1890 },
-  { name: 'Sat', sales: 2390 },
-  { name: 'Sun', sales: 3490 },
-];
+import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  const [stats, setStats] = useState({
+    totalSales: 0,
+    productCount: 0,
+    customerCount: 0,
+    lowStockCount: 0
+  });
+  const [salesData, setSalesData] = useState<any[]>([]);
+  const [categoryData, setCategoryData] = useState<any[]>([]);
 
-  const stats = [
-    { label: 'Total Sales', value: 'K45,230', icon: TrendingUp, color: 'text-brand-gold' },
-    { label: 'Products', value: '124', icon: Package, color: 'text-brand-pink' },
-    { label: 'Customers', value: '892', icon: Users, color: 'text-blue-400' },
-    { label: 'Low Stock', value: '12', icon: AlertTriangle, color: 'text-red-400' },
+  useEffect(() => {
+    // 1. Fetch Stats
+    const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
+      const docs = snapshot.docs.map(doc => doc.data());
+      setStats(prev => ({
+        ...prev,
+        productCount: snapshot.size,
+        lowStockCount: docs.filter(d => (d.stock || 0) <= (d.minStock || 5)).length
+      }));
+    });
+
+    const unsubCustomers = onSnapshot(collection(db, 'customers'), (snapshot) => {
+      setStats(prev => ({ ...prev, customerCount: snapshot.size }));
+    });
+
+    const unsubSales = onSnapshot(collection(db, 'sales'), (snapshot) => {
+      const total = snapshot.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
+      setStats(prev => ({ ...prev, totalSales: total }));
+
+      // Process Sales Chart Data (Last 7 Days)
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const date = subDays(new Date(), i);
+        return {
+          date: format(date, 'yyyy-MM-dd'),
+          name: format(date, 'EEE'),
+          sales: 0,
+          rawDate: date
+        };
+      }).reverse();
+
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const saleDate = data.timestamp?.toDate ? format(data.timestamp.toDate(), 'yyyy-MM-dd') : null;
+        const dayMatch = last7Days.find(d => d.date === saleDate);
+        if (dayMatch) {
+          dayMatch.sales += (data.total || 0);
+        }
+      });
+      setSalesData(last7Days);
+
+      // Process Category Data
+      const categories: { [key: string]: number } = {};
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        data.items?.forEach((item: any) => {
+          // Note: We don't have category in sales items yet, 
+          // but we can group by item name or fetch from products.
+          // For now, let's group by item name as a proxy for "Top Items"
+          categories[item.name] = (categories[item.name] || 0) + (item.price * item.quantity);
+        });
+      });
+      
+      const topCategories = Object.entries(categories)
+        .map(([name, value]) => ({ name, sales: value }))
+        .sort((a, b) => b.sales - a.sales)
+        .slice(0, 5);
+      
+      setCategoryData(topCategories);
+    });
+
+    return () => {
+      unsubProducts();
+      unsubCustomers();
+      unsubSales();
+    };
+  }, []);
+
+  const statCards = [
+    { label: 'Total Sales', value: `ZK ${stats.totalSales.toLocaleString()}`, icon: TrendingUp, color: 'text-brand-gold' },
+    { label: 'Products', value: stats.productCount.toString(), icon: Package, color: 'text-brand-pink' },
+    { label: 'Customers', value: stats.customerCount.toString(), icon: Users, color: 'text-blue-400' },
+    { label: 'Low Stock', value: stats.lowStockCount.toString(), icon: AlertTriangle, color: 'text-red-400' },
   ];
 
   return (
     <div className="space-y-8">
       <header>
-        <h2 className="text-3xl font-display font-bold text-brand-gold">Welcome back, {user?.displayName?.split(' ')[0]}</h2>
+        <h2 className="text-3xl font-display font-bold text-brand-gold">Welcome back, {user?.displayName?.split(' ')[0] || 'BERTHA'}</h2>
         <p className="text-gray-400">Here's what's happening at LadyBee's Hair with Flair today.</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, i) => (
+        {statCards.map((stat, i) => (
           <motion.div
             key={stat.label}
             initial={{ opacity: 0, y: 20 }}
@@ -60,7 +128,8 @@ const Dashboard: React.FC = () => {
               <div className={`p-3 rounded-xl bg-white/5 ${stat.color}`}>
                 <stat.icon size={24} />
               </div>
-              <span className="text-[10px] font-bold text-green-400 bg-green-400/10 px-2 py-1 rounded-full">+12.5%</span>
+              {/* Optional: Calculate real growth if needed */}
+              <span className="text-[10px] font-bold text-green-400 bg-green-400/10 px-2 py-1 rounded-full">Live</span>
             </div>
             <p className="text-gray-400 text-sm font-medium">{stat.label}</p>
             <h3 className="text-2xl font-bold mt-1">{stat.value}</h3>
@@ -72,11 +141,11 @@ const Dashboard: React.FC = () => {
         <div className="glass-card p-6">
           <h3 className="text-xl font-bold mb-6 flex items-center space-x-2">
             <TrendingUp className="text-brand-gold" size={20} />
-            <span>Sales Overview</span>
+            <span>Sales Overview (7 Days)</span>
           </h3>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
+              <AreaChart data={salesData}>
                 <defs>
                   <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.3}/>
@@ -89,6 +158,7 @@ const Dashboard: React.FC = () => {
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#1A1A1A', border: '1px solid #333', borderRadius: '8px' }}
                   itemStyle={{ color: '#D4AF37' }}
+                  formatter={(value: number) => [`ZK ${value.toLocaleString()}`, 'Sales']}
                 />
                 <Area type="monotone" dataKey="sales" stroke="#D4AF37" fillOpacity={1} fill="url(#colorSales)" strokeWidth={3} />
               </AreaChart>
@@ -99,17 +169,18 @@ const Dashboard: React.FC = () => {
         <div className="glass-card p-6">
           <h3 className="text-xl font-bold mb-6 flex items-center space-x-2">
             <Package className="text-brand-pink" size={20} />
-            <span>Top Categories</span>
+            <span>Top Selling Products</span>
           </h3>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data}>
+              <BarChart data={categoryData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                <XAxis dataKey="name" stroke="#666" fontSize={12} tickLine={false} axisLine={false} />
+                <XAxis dataKey="name" stroke="#666" fontSize={10} tickLine={false} axisLine={false} />
                 <YAxis stroke="#666" fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#1A1A1A', border: '1px solid #333', borderRadius: '8px' }}
                   itemStyle={{ color: '#FF69B4' }}
+                  formatter={(value: number) => [`ZK ${value.toLocaleString()}`, 'Revenue']}
                 />
                 <Bar dataKey="sales" fill="#FF69B4" radius={[4, 4, 0, 0]} />
               </BarChart>
