@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Inventory items for Hair with Flair",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "price": { "type": "number" },
+        "stock": { "type": "number" },
+        "minStock": { "type": "number" },
+        "image": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "price", "stock"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Client database",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "totalSpent": { "type": "number" },
+        "lastVisit": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phone"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "Sales transactions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "items": { "type": "array" },
+        "total": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["items", "total", "timestamp"]
+    },
+    "LayBy": {
+      "title": "Lay-by",
+      "description": "Lay-by agreements",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "items": { "type": "array" },
+        "totalAmount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "completed", "cancelled"] },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "payments": { "type": "array" }
+      },
+      "required": ["customerId", "totalAmount", "paidAmount", "status"]
+    },
+    "ZRAPayment": {
+      "title": "ZRA Payment",
+      "description": "Tax payment records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "amount": { "type": "number" },
+        "reference": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["amount", "reference", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Collection of products"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Collection of customers"
+    },
+    "/sales/{saleId}": {
+      "schema": "Sale",
+      "description": "Collection of sales"
+    },
+    "/laybys/{laybyId}": {
+      "schema": "LayBy",
+      "description": "Collection of lay-bys"
+    },
+    "/zra_payments/{paymentId}": {
+      "schema": "ZRAPayment",
+      "description": "Collection of ZRA payments"
+    }
+  }
+}

@@ -1,0 +1,108 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: products
+    // Fields: name (string), category (string), price (number), stock (number), minStock (number), image (string), createdAt (timestamp)
+    //
+    // Collection: customers
+    // Fields: name (string), phone (string), email (string), totalSpent (number), lastVisit (timestamp)
+    //
+    // Collection: sales
+    // Fields: customerId (string), items (list), total (number), paymentMethod (string), timestamp (timestamp)
+    //
+    // Collection: laybys
+    // Fields: customerId (string), items (list), totalAmount (number), paidAmount (number), status (string), dueDate (timestamp), payments (list)
+    //
+    // Collection: zra_payments
+    // Fields: amount (number), reference (string), type (string), status (string), timestamp (timestamp)
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isCEO() {
+      return request.auth != null && 
+             request.auth.token != null && 
+             'email' in request.auth.token && 
+             request.auth.token.email.matches('(?i)ladybeeshairwithflair@gmail\\.com');
+    }
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isCEO();
+    }
+
+    function isValidString(val, min, max) {
+      return val is string && val.size() >= min && val.size() <= max;
+    }
+
+    function isValidNumber(val, min) {
+      return val is number && val >= min;
+    }
+
+    function hasOnlyAllowedFields(data, allowed) {
+      return data.keys().hasOnly(allowed);
+    }
+
+    function hasRequiredFields(data, required) {
+      return data.keys().hasAll(required);
+    }
+
+    // Domain Validators
+    function isValidProduct(data) {
+      return data.name is string && data.name.size() > 0 &&
+             data.price is number && data.price >= 0 &&
+             data.stock is number && data.stock >= 0;
+    }
+
+    function isValidCustomer(data) {
+      return hasRequiredFields(data, ['name', 'phone']) &&
+             isValidString(data.name, 1, 100) &&
+             isValidString(data.phone, 5, 20);
+    }
+
+    function isValidSale(data) {
+      return hasRequiredFields(data, ['items', 'total', 'timestamp']) &&
+             data.items is list &&
+             isValidNumber(data.total, 0);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /customers/{customerId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    match /sales/{saleId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    match /laybys/{laybyId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    match /zra_payments/{paymentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+  }
+}

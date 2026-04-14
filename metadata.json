@@ -1,0 +1,5 @@
+{
+  "name": "LadyBee's Hair with Flair",
+  "description": "Professional business management system for LadyBee's Hair with Flair, focusing on inventory, customers, and lay-by sales.",
+  "requestFramePermissions": ["camera", "microphone"]
+}
