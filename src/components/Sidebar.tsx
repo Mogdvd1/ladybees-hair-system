@@ -34,6 +34,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
     { id: 'layby', label: 'Lay-by', icon: Clock },
     { id: 'reports', label: 'Reports', icon: Receipt },
     { id: 'converter', label: 'Currency', icon: Calculator },
+    { id: 'settings', label: 'Settings', icon: List },
   ];
 
   return (
@@ -57,7 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
             <p className="text-[10px] text-brand-pink uppercase tracking-[0.2em] -mt-1">
               Hair with Flair
             </p>
-            <p className="text-[8px] text-gray-600 mt-1 uppercase tracking-widest">System v1.4.3</p>
+            <p className="text-[8px] text-gray-600 mt-1 uppercase tracking-widest">System v1.4.4</p>
           </div>
 
           <nav className="flex-1 space-y-2">

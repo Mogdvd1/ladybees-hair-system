@@ -13,6 +13,7 @@ import LayBy from './components/LayBy';
 import Customers from './components/Customers';
 import Reports from './components/Reports';
 import CurrencyConverter from './components/CurrencyConverter';
+import Settings from './components/Settings';
 import { Toaster, toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { LogIn, LayoutDashboard } from 'lucide-react';
@@ -99,6 +100,7 @@ const AppContent: React.FC = () => {
       case 'layby': return <LayBy />;
       case 'reports': return <Reports />;
       case 'converter': return <CurrencyConverter />;
+      case 'settings': return <Settings />;
       default: return (
         <div className="flex flex-col items-center justify-center h-[60vh] text-gray-500 space-y-4">
           <div className="p-6 rounded-full bg-white/5">
