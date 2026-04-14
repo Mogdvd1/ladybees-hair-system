@@ -305,6 +305,10 @@ const LayBy: React.FC = () => {
                   <span className="text-gray-400">Progress</span>
                   <span className="text-brand-gold font-mono">ZK {agreement.paidAmount.toLocaleString()} / ZK {agreement.totalAmount.toLocaleString()}</span>
                 </div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-gray-400">Balance Due</span>
+                  <span className="text-brand-pink font-mono font-bold">ZK {(agreement.totalAmount - agreement.paidAmount).toLocaleString()}</span>
+                </div>
                 <div className="h-2 bg-white/5 rounded-full overflow-hidden">
                   <motion.div 
                     initial={{ width: 0 }}
