@@ -42,6 +42,7 @@ const LayBy: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('1 month');
   const [paymentModal, setPaymentModal] = useState<{ id: string, currentPaid: number, total: number } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState('');
   const [paymentProof, setPaymentProof] = useState('');
   
   const [formData, setFormData] = useState({
@@ -200,7 +201,7 @@ const LayBy: React.FC = () => {
         status,
         payments: arrayUnion({
           amount: amount,
-          date: new Date().toISOString(),
+          date: paymentDate ? new Date(paymentDate).toISOString() : new Date().toISOString(),
           note: 'Installment',
           proofImage: paymentProof
         })
@@ -208,6 +209,7 @@ const LayBy: React.FC = () => {
       toast.success('Payment recorded!');
       setPaymentModal(null);
       setPaymentAmount('');
+      setPaymentDate('');
       setPaymentProof('');
     } catch (error: any) {
       console.error('Payment error:', error);
@@ -563,16 +565,27 @@ const LayBy: React.FC = () => {
               <p className="text-xs text-gray-400 mb-6 uppercase tracking-widest">Agreement: {agreements.find(a => a.id === paymentModal.id)?.customerName}</p>
               
               <div className="space-y-4">
-                <div>
-                  <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Payment Amount (ZK)</label>
-                  <input 
-                    autoFocus
-                    type="number" 
-                    value={paymentAmount || ''}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold text-lg font-mono"
-                    placeholder="0.00"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Amount (ZK)</label>
+                    <input 
+                      autoFocus
+                      type="number" 
+                      value={paymentAmount || ''}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold text-lg font-mono"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Date (Optional)</label>
+                    <input 
+                      type="date" 
+                      value={paymentDate}
+                      onChange={(e) => setPaymentDate(e.target.value)}
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-gold text-sm"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1">Proof of Payment</label>
