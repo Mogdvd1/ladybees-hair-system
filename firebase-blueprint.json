@@ -73,6 +73,86 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["amount", "reference", "timestamp"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Inventory suppliers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "contactPerson": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "categories": { "type": "array" },
+        "documents": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "RFQ": {
+      "title": "RFQ",
+      "description": "Request for Quotation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "items": { "type": "array" },
+        "status": { "type": "string", "enum": ["pending", "responded"] },
+        "dateIssued": { "type": "string", "format": "date-time" }
+      },
+      "required": ["supplierId", "items", "status", "dateIssued"]
+    },
+    "Quotation": {
+      "title": "Quotation",
+      "description": "Supplier quotations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "rfqId": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "items": { "type": "array" },
+        "totalPrice": { "type": "number" },
+        "validUntil": { "type": "string", "format": "date-time" },
+        "documentUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] }
+      },
+      "required": ["supplierId", "totalPrice", "status"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Procurement orders",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "quotationId": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "items": { "type": "array" },
+        "paymentTerms": { "type": "string" },
+        "deliveryDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "received"] },
+        "stockUpdated": { "type": "boolean" }
+      },
+      "required": ["supplierId", "status"]
+    },
+    "PriceAdjustment": {
+      "title": "Price Adjustment",
+      "description": "Cost breakdown and selling price calculations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderId": { "type": "string" },
+        "buyingCost": { "type": "number" },
+        "shippingCost": { "type": "number" },
+        "logisticsCost": { "type": "number" },
+        "baseCost": { "type": "number" },
+        "markup": { "type": "number" },
+        "finalPrice": { "type": "number" },
+        "currency": { "type": "string" },
+        "exchangeRate": { "type": "number" }
+      },
+      "required": ["orderId", "finalPrice"]
     }
   },
   "firestore": {
@@ -95,6 +175,26 @@
     "/zra_payments/{paymentId}": {
       "schema": "ZRAPayment",
       "description": "Collection of ZRA payments"
+    },
+    "/suppliers/{supplierId}": {
+      "schema": "Supplier",
+      "description": "Collection of suppliers"
+    },
+    "/rfqs/{rfqId}": {
+      "schema": "RFQ",
+      "description": "Collection of RFQs"
+    },
+    "/quotations/{quotationId}": {
+      "schema": "Quotation",
+      "description": "Collection of quotations"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Collection of orders"
+    },
+    "/price_adjustments/{adjustmentId}": {
+      "schema": "PriceAdjustment",
+      "description": "Collection of price adjustments"
     }
   }
 }

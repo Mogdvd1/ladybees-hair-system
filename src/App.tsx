@@ -12,6 +12,7 @@ import Sales from './components/Sales';
 import LayBy from './components/LayBy';
 import Customers from './components/Customers';
 import Reports from './components/Reports';
+import Ordering from './components/Ordering';
 import CurrencyConverter from './components/CurrencyConverter';
 import Settings from './components/Settings';
 import { Toaster, toast } from 'sonner';
@@ -35,9 +36,9 @@ const AppContent: React.FC = () => {
         <motion.div 
           animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
           transition={{ duration: 2, repeat: Infinity }}
-          className="text-brand-gold text-3xl font-cursive font-bold tracking-widest"
+          className="text-brand-gold text-3xl font-display font-bold tracking-widest uppercase italic"
         >
-          LadyBee's Hair with Flair
+          Lady Bee's Hair With Flair®
         </motion.div>
       </div>
     );
@@ -52,11 +53,14 @@ const AppContent: React.FC = () => {
           className="glass-card max-w-md w-full p-10 text-center space-y-8"
         >
           <div className="space-y-2">
-            <h1 className="text-5xl font-cursive font-bold text-brand-gold tracking-wider">
-              LadyBee's
+            <h1 className="text-4xl font-display font-bold text-brand-gold tracking-widest uppercase italic">
+              Lady Bee's
             </h1>
-            <p className="text-xs text-brand-pink uppercase tracking-[0.3em] -mt-2">
-              Hair with Flair
+            <p className="text-[10px] text-brand-gold font-bold italic-editorial tracking-[0.3em] uppercase -mt-1">
+              Hair With Flair®
+            </p>
+            <p className="text-[10px] text-brand-gold font-bold tracking-[0.2em] uppercase">
+              Your Best Hair Affair
             </p>
           </div>
           
@@ -100,11 +104,12 @@ const AppContent: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard />;
-      case 'products': return <Products />;
+      case 'products': return isAdmin ? <Products /> : null;
       case 'customers': return <Customers />;
       case 'sales': return <Sales />;
       case 'layby': return <LayBy />;
-      case 'reports': return <Reports />;
+      case 'reports': return isAdmin ? <Reports /> : null;
+      case 'ordering': return isAdmin ? <Ordering /> : null;
       case 'converter': return <CurrencyConverter />;
       case 'settings': return <Settings />;
       default: return (
@@ -112,7 +117,7 @@ const AppContent: React.FC = () => {
           <div className="p-6 rounded-full bg-white/5">
             <LayoutDashboard size={48} />
           </div>
-          <p className="text-xl font-cursive italic text-brand-gold">Module coming soon...</p>
+          <p className="text-xl italic-editorial text-brand-gold">Module coming soon...</p>
         </div>
       );
     }

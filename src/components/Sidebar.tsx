@@ -13,7 +13,8 @@ import {
   LogOut,
   LogIn,
   Menu,
-  X
+  X,
+  Truck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -28,14 +29,19 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'products', label: 'Products', icon: Package },
     { id: 'customers', label: 'Customers', icon: Users },
     { id: 'sales', label: 'Sales', icon: ShoppingCart },
     { id: 'layby', label: 'Lay-by', icon: Clock },
-    { id: 'reports', label: 'Reports', icon: Receipt },
     { id: 'converter', label: 'Currency', icon: Calculator },
     { id: 'settings', label: 'Settings', icon: List },
   ];
+
+  if (isAdmin) {
+    // Add Products, Reports and Ordering for Admin
+    menuItems.splice(1, 0, { id: 'products', label: 'Products', icon: Package });
+    menuItems.splice(5, 0, { id: 'reports', label: 'Reports', icon: Receipt });
+    menuItems.splice(menuItems.length - 1, 0, { id: 'ordering', label: 'Ordering', icon: Truck });
+  }
 
   return (
     <>
@@ -52,13 +58,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
       `}>
         <div className="flex flex-col h-full p-6">
           <div className="mb-10 text-center">
-            <h1 className="text-3xl font-cursive font-bold text-brand-gold tracking-wider">
-              LadyBee's
+            <h1 className="text-3xl font-display font-bold text-brand-gold tracking-widest uppercase italic leading-none">
+              Lady Bee's
             </h1>
-            <p className="text-[10px] text-brand-pink uppercase tracking-[0.2em] -mt-1">
-              Hair with Flair
+            <p className="text-[9px] text-brand-gold uppercase tracking-[0.2em] font-bold">
+              Hair With Flair®
             </p>
-            <p className="text-[8px] text-gray-600 mt-1 uppercase tracking-widest">System v1.4.8</p>
+            <p className="text-[9px] text-brand-gold uppercase tracking-[0.1em] mt-1 font-bold">
+              Your Best Hair Affair
+            </p>
           </div>
 
           <nav className="flex-1 space-y-2">

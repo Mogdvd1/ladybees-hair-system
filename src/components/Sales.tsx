@@ -160,7 +160,10 @@ const Sales: React.FC = () => {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div className="lg:col-span-2 space-y-6">
         <header className="flex justify-between items-center">
-          <h2 className="text-3xl font-cursive font-bold text-brand-gold">New Sale</h2>
+          <div>
+            <h2 className="text-3xl font-editorial font-bold text-brand-gold uppercase tracking-widest italic">New Sale</h2>
+            <p className="text-[10px] text-brand-pink font-medium italic-editorial tracking-widest uppercase">POS Terminals</p>
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input 

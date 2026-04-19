@@ -57,8 +57,8 @@ const CurrencyConverter: React.FC = () => {
   return (
     <div className="max-w-2xl mx-auto space-y-8">
       <div className="text-center space-y-2">
-        <h2 className="text-4xl font-cursive font-bold text-brand-gold">Currency Converter</h2>
-        <p className="text-gray-400">Real-time rates synced with global markets</p>
+        <h2 className="text-4xl font-editorial font-bold text-brand-gold uppercase tracking-widest italic">Currency Converter</h2>
+        <p className="text-gray-400 font-medium italic-editorial text-sm">Real-time rates synced with global markets</p>
       </div>
 
       <div className="glass-card p-8 space-y-8">

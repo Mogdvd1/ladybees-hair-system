@@ -208,7 +208,10 @@ const Customers: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-3xl font-display font-bold text-brand-gold">Customer Directory</h2>
+        <div>
+          <h2 className="text-3xl font-editorial font-bold text-brand-gold uppercase tracking-widest italic">Customer Directory</h2>
+          <p className="text-[10px] text-brand-pink font-medium italic-editorial tracking-widest uppercase mt-1">CRM & Loyalty</p>
+        </div>
         <div className="flex items-center space-x-4">
           {isAdmin && (
             <div className="relative">
@@ -415,7 +418,7 @@ const Customers: React.FC = () => {
               className="glass-card w-full max-w-md p-6 sm:p-8 my-auto sm:my-8"
             >
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-cursive font-bold text-brand-gold">Edit Customer</h3>
+                <h3 className="text-2xl font-display font-bold text-brand-gold italic">Edit Customer</h3>
                 <button onClick={() => setEditingCustomer(null)} className="text-gray-400 hover:text-white">✕</button>
               </div>
               <form onSubmit={handleUpdate} className="space-y-4">

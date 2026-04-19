@@ -66,8 +66,8 @@ const Settings: React.FC = () => {
   return (
     <div className="space-y-8">
       <header>
-        <h2 className="text-3xl font-cursive font-bold text-brand-gold">System Settings</h2>
-        <p className="text-gray-400">Manage your application data and security</p>
+        <h2 className="text-3xl font-editorial font-bold text-brand-gold uppercase tracking-widest italic">System Settings</h2>
+        <p className="text-gray-400 font-medium italic-editorial text-sm">Manage your application data and security</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -133,7 +133,7 @@ const Settings: React.FC = () => {
                 <CheckCircle2 className="text-green-500 mt-1" size={16} />
                 <div>
                   <p className="font-bold text-white">Staff Member</p>
-                  <p className="text-xs text-gray-400">Can process sales, manage products, and view customers. No access to reports or settings.</p>
+                  <p className="text-xs text-gray-400">Can access the point-of-sale (POS), manage customers, and view lay-bys. No access to inventory management, financial reports, or system settings.</p>
                 </div>
               </div>
             </div>

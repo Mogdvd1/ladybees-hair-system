@@ -329,7 +329,10 @@ const LayBy: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-3xl font-cursive font-bold text-brand-gold">Lay-by Management</h2>
+        <div>
+          <h2 className="text-3xl font-editorial font-bold text-brand-gold uppercase tracking-widest italic">Lay-by Management</h2>
+          <p className="text-[10px] text-brand-pink font-medium italic-editorial tracking-widest uppercase mt-1">Installment Plans</p>
+        </div>
         <div className="flex items-center space-x-4">
           <div className="flex items-center bg-white/5 rounded-xl p-1 border border-white/10">
             <button 
@@ -602,7 +605,7 @@ const LayBy: React.FC = () => {
               exit={{ scale: 0.9, opacity: 0 }}
               className="glass-card w-full max-w-2xl p-6 sm:p-8 my-auto sm:my-8"
             >
-              <h3 className="text-2xl font-cursive font-bold text-brand-gold mb-6">New Lay-by Agreement</h3>
+              <h3 className="text-2xl font-display font-bold text-brand-gold mb-6 italic">New Lay-by Agreement</h3>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">

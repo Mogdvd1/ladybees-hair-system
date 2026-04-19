@@ -59,7 +59,10 @@ const ZRAPayments: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-3xl font-display font-bold text-brand-gold">ZRA Compliance</h2>
+        <div>
+          <h2 className="text-3xl font-editorial font-bold text-brand-gold uppercase tracking-widest italic">ZRA Compliance</h2>
+          <p className="text-[10px] text-brand-pink font-medium italic-editorial tracking-widest uppercase mt-1">Tax & Regulatory filings</p>
+        </div>
         <div className="flex items-center space-x-4">
           {isAdmin && (
             <button 

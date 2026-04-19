@@ -24,9 +24,9 @@ service cloud.firestore {
     // ===============================================================
     function isCEO() {
       return request.auth != null && 
-             request.auth.token != null && 
+             request.auth.token != null &&
              'email' in request.auth.token && 
-             request.auth.token.email.matches('(?i)ladybeeshairwithflair@gmail\\.com');
+             request.auth.token.email.lower() == 'ladybeeshairwithflair@gmail.com';
     }
 
     function isAuthenticated() {
@@ -102,6 +102,27 @@ service cloud.firestore {
     match /zra_payments/{paymentId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
+    }
+
+    // Ordering Module (Admin Only)
+    match /suppliers/{supplierId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /rfqs/{rfqId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /quotations/{quotationId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /price_adjustments/{adjustmentId} {
+      allow read, write: if isAdmin();
     }
 
   }

@@ -120,8 +120,8 @@ const Reports: React.FC = () => {
     <div className="space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-cursive font-bold text-brand-gold">Business Reports</h2>
-          <p className="text-gray-400">Comprehensive overview of LadyBee's performance</p>
+          <h2 className="text-3xl font-display font-bold text-brand-gold uppercase tracking-widest italic">Business Reports</h2>
+          <p className="text-gray-400 font-medium italic-editorial text-sm">Comprehensive overview of Lady Bee's performance</p>
         </div>
         <div className="flex items-center space-x-4">
           <div className="relative">
